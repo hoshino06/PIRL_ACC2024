@@ -319,26 +319,49 @@ classdef customDQNAgent < rl.agent.AbstractOffPolicyAgent
                     disp('Caution! Modification not applied to Prioritized Experienced Replay: See line 319')
                 else
     
-                    %%%% Original gradient %%%%%%%%%%%%%%%%%%%%%%%%%                    
+                    %%%% Original gradient %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                    
                     %[criticGradient, gradInfo] = gradient(this.Critic_,this.LossFcn_,...
                     %    miniBatch.Observation, lossInput);
                     %disp('-----------------------------')
                     %disp(criticGradient{1}(1,:)) 
 
-                    %%%% Custom gradient %%%%%%%%%%%%%%%%%%%%%%%%%    
+                    %%%% Custom gradient %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
                     lossInput.net = this.Critic_.getModel;
+                    lossInput.actInfo = this.ActionInfo;
+
+                    % samples from experiences
                     obs = miniBatch.Observation{:};
                     obs = reshape(obs, size(obs,1), size(obs,3));
                     lossInput.obs  = dlarray(obs, 'CB');
                     
-                    % samples for pde loss
-                    lossInput.nBatch = 32;
-                    xpde = min(obs,[],2) + (max(obs,[],2)-min(obs,[],2)) .* ...
-                            rand(prod(this.ObservationInfo.Dimension), lossInput.nBatch);
-                    lossInput.xpde = dlarray(xpde, 'CB');
-                    lossInput.actInfo = this.ActionInfo;
+                    % samples for boundary (tau=0; inside safe set)
+                    lossInput.nFin = 32;
+                    x_min = [-1.5; -1.0;   0]; 
+                    x_max = [ 1.5;  1.0;   0];
+                    xfin = x_min + (x_max - x_min) .* ...
+                            rand(prod(this.ObservationInfo.Dimension), lossInput.nFin);
+                    lossInput.xfin = dlarray(xfin, 'CB');                                        
 
-                    [CustomLoss, CustomGrad]  = dlfeval(@modelLoss, lossInput);
+                    % samples for boundary (outside safe set)
+                    lossInput.nUnsafe = 32;
+                    x_min = [-1.5;  1.0;   0]; 
+                    x_max = [ 1.5;  1.2;   3];
+                    xunsafe = x_min + (x_max - x_min) .* ...
+                                rand(prod(this.ObservationInfo.Dimension), lossInput.nUnsafe);                    
+                    x2_sign = sign(randn([1,lossInput.nUnsafe]));
+                    xunsafe(2,:) = xunsafe(2,:) .* x2_sign;
+                    lossInput.xunsafe = dlarray(xunsafe, 'CB');                                       
+
+                    % samples for pde loss (inside boundary)
+                    lossInput.nPDE = 32;
+                    x_min = [-1.5; -0.9;   0]; 
+                    x_max = [ 1.5;  0.9; 2.5];
+                    xpde = x_min + (x_max - x_min) .* ...
+                            rand(prod(this.ObservationInfo.Dimension), lossInput.nPDE);
+                    lossInput.xpde = dlarray(xpde, 'CB');
+
+                    % custom loss function
+                    [CustomLoss, CustomGrad]  = dlfeval(@customLoss, lossInput);
                     criticGradient = CustomGrad;
 
                     %disp(CustomGrad{1}(1,:)) 
@@ -346,6 +369,8 @@ classdef customDQNAgent < rl.agent.AbstractOffPolicyAgent
                     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 end
             else
+                disp('Caution! Modification not applied to Single Output Value function: See line 372')
+
                 % Additional input info for ConservativeQLearning
                 if isa(this.AgentOptions.BatchDataRegularizerOptions,'rl.option.rlConservativeQLearningOptions')
                     lossInput.CQLAlpha = this.AgentOptions.BatchDataRegularizerOptions.MinQValueWeight;
