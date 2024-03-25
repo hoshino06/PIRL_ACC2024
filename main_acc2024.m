@@ -1,7 +1,10 @@
-% Q-learning for planer example 
-clear
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Train PIRL agent for planer example
+function [] = main_acc2024(AgentIdx, AgentDir)
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    if (nargin < 1), clear; AgentIdx = NaN; AgentDir = NaN; end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Environment (defined at the bottom)
 obsInfo = rlNumericSpec([3,1]);
 actInfo = rlFiniteSetSpec(-1:0.5:1);
@@ -23,7 +26,7 @@ layers = [
 Critic = rlVectorQValueFunction( dlnetwork(layers), obsInfo, actInfo );
 
 AgentOptions = rlDQNAgentOptions;
-AgentOptions.DiscountFactor = 1.00;  %(default:0.99)
+AgentOptions.DiscountFactor = 1.00; %(default:0.99)
 AgentOptions.MiniBatchSize  =   64; %(default:64)
 AgentOptions.EpsilonGreedyExploration.EpsilonDecay = 0.0002; %(default:0.005)
 AgentOptions.EpsilonGreedyExploration.EpsilonMin = 0.01; %(default:0.01)
@@ -34,24 +37,36 @@ agent = customDQNAgent(Critic, AgentOptions);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Training
 trainOpts = rlTrainingOptions(...
-    MaxEpisodes = 10000,...
+    MaxEpisodes = 5000,...
     ScoreAveragingWindowLength = 100, ...
     StopTrainingCriteria="AverageReward",...
-    StopTrainingValue=1);
+    StopTrainingValue=1.1, ...
+    Plots= "none");
+
+% Plot if single agent trained
+if isnan(AgentIdx) 
+    trainOpts.Plots = "training-progress"; % "none"; % 
+end
+
+% % Parallelization didn't improved training speed
+% trainOpts.UseParallel = true;
+% trainOpts.ParallelizationOptions.Mode = "async";
 
 do_training = true;
-
-trainOpts.Plots = "training-progress"; % "none"; % 
-
-% if trainOpts.Plots == "training-progress"
-%     trainOpts.UseParallel = true;
-%     trainOpts.ParallelizationOptions.Mode = "async";
-% end
-
 if do_training == true
-    trainResults = train(agent,env,trainOpts);
-    save data/data.mat agent env trainResults
+    if isnan(AgentIdx)
+        trainResults = train(agent,env,trainOpts);
+        save data_trial/data.mat agent env trainResults
+    else
+        disp("Training Agent # "+num2str(AgentIdx))
+        agent_dir = "data/"+AgentDir;
+        if ~exist(agent_dir, 'dir'), mkdir(agent_dir); end
 
+        trainResults = train(agent,env,trainOpts);
+
+        file_name = agent_dir+"/data"+num2str(AgentIdx)+".mat";
+        save (file_name, "agent", "env", "trainResults")
+    end
 end
 
 
@@ -64,12 +79,11 @@ function [InitialObservation, LoggedSignal] = resetFunction()
     r  = rand([2, 1]);
 
     X1  = s(1)*( r(1) * 1.5 );
-    X2  = s(2)*( 0.8 + 0.2 * r(2) );  
-    
-    dt = 0.1;
-    T  = randi([10, 30])*dt;
+    X2  = s(2)*( r(2) * 1.0 );
 
-    LoggedSignal.State = [X1; X2; T];
+    TD  = 2.0;
+
+    LoggedSignal.State = [X1; X2; TD];
     InitialObservation = LoggedSignal.State;
 
 end
@@ -84,9 +98,9 @@ function [NextObs,Reward,IsDone,LoggedSignals] = stepFunction(Action,LoggedSigna
     X     = LoggedSignals.State(1:2);
     U     = Action;
 
-    fun = @(x,u) [ ( -x(1)^3 - x(2) ); ( x(1)+x(2)+ u ) ];
-    [~,y] = ode45( @(t,x) fun(x,U), [0,dt], X);
-    X_nxt = transpose( y(end,:) ) + sigma*sqrt(dt)*randn(2,1);
+    X_nxt = X + dt*[( -X(1)^3 - X(2) ); ( X(1)+X(2)+ U )] ...
+            + sigma*sqrt(dt)*randn(2,1);
+
 
     T = LoggedSignals.State(end) - dt;
     LoggedSignals.State = [X_nxt; T];
@@ -109,3 +123,5 @@ function [NextObs,Reward,IsDone,LoggedSignals] = stepFunction(Action,LoggedSigna
     end
 
 end
+
+end % EndOfFunction

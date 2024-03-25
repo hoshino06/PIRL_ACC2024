@@ -52,7 +52,7 @@ function [loss,gradients] = customLoss(LossInput)
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Combined loss 
-    lambda = 1e-2; 
+    lambda = 1e-4;
     loss = LossD + LossPfin + LossPunsafe + lambda* LossP; 
 
     % disp(['LossD:' num2str(LossD,'%.2e'), ' LossP:' num2str(LossP,'%.2e')])

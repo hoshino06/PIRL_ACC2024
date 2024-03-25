@@ -345,7 +345,7 @@ classdef customDQNAgent < rl.agent.AbstractOffPolicyAgent
                     % samples for boundary (outside safe set)
                     lossInput.nUnsafe = 32;
                     x_min = [-1.5;  1.0;   0]; 
-                    x_max = [ 1.5;  1.2;   3];
+                    x_max = [ 1.5;  1.0;   2];
                     xunsafe = x_min + (x_max - x_min) .* ...
                                 rand(prod(this.ObservationInfo.Dimension), lossInput.nUnsafe);                    
                     x2_sign = sign(randn([1,lossInput.nUnsafe]));
@@ -353,9 +353,9 @@ classdef customDQNAgent < rl.agent.AbstractOffPolicyAgent
                     lossInput.xunsafe = dlarray(xunsafe, 'CB');                                       
 
                     % samples for pde loss (inside boundary)
-                    lossInput.nPDE = 32;
-                    x_min = [-1.5; -0.9;   0]; 
-                    x_max = [ 1.5;  0.9; 2.5];
+                    lossInput.nPDE = 64;
+                    x_min = [-1.5; -0.9;  0]; 
+                    x_max = [ 1.5;  0.9;  2];
                     xpde = x_min + (x_max - x_min) .* ...
                             rand(prod(this.ObservationInfo.Dimension), lossInput.nPDE);
                     lossInput.xpde = dlarray(xpde, 'CB');
